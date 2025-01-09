@@ -104,7 +104,7 @@ func loadConfig() (config, error) {
 	var (
 		host     string
 		port     uint
-		hostKeys StringList
+		hostKeys StringList = []string{"/etc/ssh/ssh_host_rsa_key"}
 		users    StringList
 		pubs     StringList
 		pubPaths StringList
