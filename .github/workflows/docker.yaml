@@ -2,7 +2,7 @@ name: build-images-and-publish-to-registry
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   ubuntu-latest:
