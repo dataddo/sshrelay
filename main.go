@@ -1,55 +1,63 @@
 package main
 
 import (
+	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
-	"strings"
+	"syscall"
 
+	"github.com/bep/simplecobra"
 	"github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
 )
 
 const version = "0.0.1"
 
-type StringList []string
-
-func (s StringList) String() string {
-	if len(s) == 0 {
-		return ""
-	}
-	return strings.Join(s, ",")
+type rootCmd struct {
+	flags cmdFlags
+	cfg   config
 }
 
-func (s *StringList) Set(value string) error {
-	*s = strings.Split(value, ",")
-	return nil
-}
+func (r *rootCmd) Name() string { return "sshrelay" }
 
-type config struct {
-	addr         string
-	signers      []ssh.Signer
-	allowedUsers map[string][]ssh.PublicKey
+func (r *rootCmd) Commands() []simplecobra.Commander {
+	return []simplecobra.Commander{}
 }
 
 func main() {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
-	cfg, err := loadConfig()
+	ex, err := simplecobra.New(&rootCmd{})
 	if err != nil {
-		logger.Fatalf("Failed to load config: %v", err)
+		fmt.Println(err)
+		os.Exit(2)
 	}
+
+	log.Printf("args: %v", os.Args[1:])
+	if c, err := ex.Execute(context.Background(), os.Args[1:]); err != nil {
+		if simplecobra.IsCommandError(err) {
+			_ = c.CobraCommand.Help()
+			fmt.Println()
+			fmt.Println(err)
+			os.Exit(2)
+		}
+		log.Fatal(err)
+	}
+}
+
+func (r *rootCmd) Run(ctx context.Context, _ *simplecobra.Commandeer, _ []string) error {
+	// logger := log.New(os.Stderr, "", log.LstdFlags)
 	srv := ssh.Server{
-		Addr: cfg.addr,
+		Addr: r.cfg.addr,
 		Handler: func(s ssh.Session) {
 			_, _ = io.WriteString(s, "Only port forwarding available...\n")
 			_, _ = io.WriteString(s, "Use '-N' flag to not start terminal session\n")
 		},
-		HostSigners: cfg.signers,
+		HostSigners: r.cfg.signers,
 		Version:     "SSHRelay_" + version,
 		BannerHandler: func(ctx ssh.Context) string {
 			return "" +
@@ -70,7 +78,7 @@ func main() {
 				"###################################################################\n"
 		},
 		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
-			userKeys, ok := cfg.allowedUsers[ctx.User()]
+			userKeys, ok := r.cfg.allowedUsers[ctx.User()]
 			if !ok {
 				return false
 			}
@@ -94,45 +102,92 @@ func main() {
 			"session": ssh.DefaultSessionHandler,
 		},
 	}
-	if err := srv.ListenAndServe(); !errors.Is(err, ssh.ErrServerClosed) {
-		log.Fatalf("ListenAndServe failed: %v", err)
-	}
-	log.Println("Server closed")
+	return runServer(ctx, &srv)
 }
 
-func loadConfig() (config, error) {
-	var (
-		host     string
-		port     uint
-		hostKeys StringList = []string{"/etc/ssh/ssh_host_rsa_key"}
-		users    StringList
-		pubs     StringList
-		pubPaths StringList
-	)
-	flag.StringVar(&host, "host", "0.0.0.0", "Hostname or IP address to listen on")
-	flag.UintVar(&port, "port", 22, "Port to listen on")
-	flag.Var(&hostKeys, "host-key", "Host key file (default \"/etc/ssh/ssh_host_rsa_key\")")
-	flag.Var(&users, "user", "Allowed user")
-	flag.Var(&pubs, "public-key", "Public key file for user")
-	flag.Var(&pubPaths, "public-key-path", "Path to public key file for user")
-	flag.Parse()
-	if port > 65535 {
-		return config{}, fmt.Errorf("invalid port number: %d", port)
+func runServer(_ context.Context, srv *ssh.Server) error {
+	if srv.Addr == "" {
+		srv.Addr = ":22"
 	}
-	signers, err := prepareSigners(hostKeys)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+
+	log.Printf("Listener addr: %s", srv.Addr)
+
+	ln, err := net.Listen("tcp", srv.Addr)
 	if err != nil {
-		return config{}, fmt.Errorf("failed to prepare signers: %w", err)
+		return fmt.Errorf("failed to listen on %s: %v", srv.Addr, err)
 	}
-	allowedUsers, err := allowedUsersPubKeys(users, pubs, pubPaths)
+	defer ln.Close()
+
+	log.Printf("Listening on %s\n", ln.Addr().String())
+
+	go closeListener(sigs, ln)
+	if err := srv.Serve(ln); !errors.Is(err, ssh.ErrServerClosed) {
+		return fmt.Errorf("ListenAndServe failed: %v", err)
+	}
+	log.Println("Server closed")
+	return nil
+}
+
+func closeListener(sigs <-chan os.Signal, ln net.Listener) {
+	for sig := range sigs {
+		// log.Printf("RECEIVED SIGNAL: %s", sig)
+		if sig == syscall.SIGTERM || sig == syscall.SIGINT {
+			if err := ln.Close(); err != nil {
+				log.Printf("Failed to close listener: %v", err)
+				os.Exit(1)
+			}
+		}
+	}
+}
+
+type config struct {
+	addr         string
+	signers      []ssh.Signer
+	allowedUsers map[string][]ssh.PublicKey
+}
+
+func (r *rootCmd) PreRun(_, _ *simplecobra.Commandeer) error {
+	log.Printf("PreRun: %#v\n", r.flags)
+
+	if r.flags.port > 65535 {
+		return fmt.Errorf("invalid port number: %d", r.flags.port)
+	}
+	signers, err := prepareSigners(r.flags.hostKeys)
 	if err != nil {
-		return config{}, fmt.Errorf("failed to prepare allowed users: %w", err)
+		return fmt.Errorf("failed to prepare signers: %w", err)
 	}
-	c := config{
-		addr:         net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10)),
+	allowedUsers, err := allowedUsersPubKeys(r.flags.users, r.flags.pubs, r.flags.pubPaths)
+	if err != nil {
+		return fmt.Errorf("failed to prepare allowed users: %w", err)
+	}
+	r.cfg = config{
+		addr:         net.JoinHostPort(r.flags.host, strconv.FormatUint(uint64(r.flags.port), 10)),
 		signers:      signers,
 		allowedUsers: allowedUsers,
 	}
-	return c, nil
+	return nil
+}
+
+type cmdFlags struct {
+	host     string
+	port     uint
+	hostKeys []string
+	users    []string
+	pubs     []string
+	pubPaths []string
+}
+
+func (r *rootCmd) Init(c *simplecobra.Commandeer) error {
+	flags := c.CobraCommand.PersistentFlags()
+	flags.StringVar(&r.flags.host, "host", "0.0.0.0", "Hostname or IP address to listen on")
+	flags.UintVar(&r.flags.port, "port", 22, "Port to listen on")
+	flags.StringSliceVar(&r.flags.hostKeys, "host-key", []string{"/etc/ssh/ssh_host_rsa_key"}, "Host key file")
+	flags.StringSliceVar(&r.flags.users, "user", nil, "Allowed user")
+	flags.StringSliceVar(&r.flags.pubs, "public-key", nil, "Public key file for user")
+	flags.StringSliceVar(&r.flags.pubPaths, "public-key-path", nil, "Path to public key file for user")
+	return nil
 }
 
 func allowedUsersPubKeys(users, pubs, pubPaths []string) (map[string][]ssh.PublicKey, error) {
@@ -169,9 +224,6 @@ func allowedUsersPubKeys(users, pubs, pubPaths []string) (map[string][]ssh.Publi
 }
 
 func prepareSigners(hostKeys []string) ([]ssh.Signer, error) {
-	if len(hostKeys) == 0 {
-		hostKeys = StringList{"/etc/ssh/ssh_host_rsa_key"}
-	}
 	var signers []ssh.Signer
 	for _, hostKey := range hostKeys {
 		keyData, err := os.ReadFile(hostKey)
