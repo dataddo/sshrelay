@@ -5,6 +5,7 @@ go 1.23
 require (
 	github.com/bep/simplecobra v0.4.0
 	github.com/gliderlabs/ssh v0.3.8
+	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 	golang.org/x/crypto v0.32.0
 )
 

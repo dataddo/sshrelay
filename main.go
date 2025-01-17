@@ -2,6 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -9,11 +16,13 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 
 	"github.com/bep/simplecobra"
 	"github.com/gliderlabs/ssh"
+	"github.com/mikesmitty/edkey"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -36,8 +45,6 @@ func main() {
 		fmt.Println(err)
 		os.Exit(2)
 	}
-
-	log.Printf("args: %v", os.Args[1:])
 	if c, err := ex.Execute(context.Background(), os.Args[1:]); err != nil {
 		if simplecobra.IsCommandError(err) {
 			_ = c.CobraCommand.Help()
@@ -50,7 +57,6 @@ func main() {
 }
 
 func (r *rootCmd) Run(ctx context.Context, _ *simplecobra.Commandeer, _ []string) error {
-	// logger := log.New(os.Stderr, "", log.LstdFlags)
 	srv := ssh.Server{
 		Addr: r.cfg.addr,
 		Handler: func(s ssh.Session) {
@@ -112,8 +118,6 @@ func runServer(_ context.Context, srv *ssh.Server) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
 
-	log.Printf("Listener addr: %s", srv.Addr)
-
 	ln, err := net.Listen("tcp", srv.Addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %v", srv.Addr, err)
@@ -132,7 +136,6 @@ func runServer(_ context.Context, srv *ssh.Server) error {
 
 func closeListener(sigs <-chan os.Signal, ln net.Listener) {
 	for sig := range sigs {
-		// log.Printf("RECEIVED SIGNAL: %s", sig)
 		if sig == syscall.SIGTERM || sig == syscall.SIGINT {
 			if err := ln.Close(); err != nil {
 				log.Printf("Failed to close listener: %v", err)
@@ -149,10 +152,13 @@ type config struct {
 }
 
 func (r *rootCmd) PreRun(_, _ *simplecobra.Commandeer) error {
-	log.Printf("PreRun: %#v\n", r.flags)
-
 	if r.flags.port > 65535 {
 		return fmt.Errorf("invalid port number: %d", r.flags.port)
+	}
+	if r.flags.genKeys {
+		if err := r.generateKeys(); err != nil {
+			return fmt.Errorf("failed to generate keys: %w", err)
+		}
 	}
 	signers, err := prepareSigners(r.flags.hostKeys)
 	if err != nil {
@@ -177,17 +183,89 @@ type cmdFlags struct {
 	users    []string
 	pubs     []string
 	pubPaths []string
+	genKeys  bool
+}
+
+var defaultHostKeys = []string{
+	"/etc/ssh/ssh_host_rsa_key",
+	"/etc/ssh/ssh_host_ecdsa_key",
+	"/etc/ssh/ssh_host_ed25519_key",
 }
 
 func (r *rootCmd) Init(c *simplecobra.Commandeer) error {
 	flags := c.CobraCommand.PersistentFlags()
 	flags.StringVar(&r.flags.host, "host", "0.0.0.0", "Hostname or IP address to listen on")
 	flags.UintVar(&r.flags.port, "port", 22, "Port to listen on")
-	flags.StringSliceVar(&r.flags.hostKeys, "host-key", []string{"/etc/ssh/ssh_host_rsa_key"}, "Host key file")
+	flags.StringSliceVar(&r.flags.hostKeys, "host-key", defaultHostKeys, "Host key file")
 	flags.StringSliceVar(&r.flags.users, "user", nil, "Allowed user")
 	flags.StringSliceVar(&r.flags.pubs, "public-key", nil, "Public key file for user")
 	flags.StringSliceVar(&r.flags.pubPaths, "public-key-path", nil, "Path to public key file for user")
+	flags.BoolVar(&r.flags.genKeys, "generate-keys", false, "Generate host keys if not exist")
 	return nil
+}
+
+func (r *rootCmd) generateKeys() error {
+	for _, keyPath := range r.flags.hostKeys {
+		var (
+			blockType string
+			bytes     []byte
+		)
+		keyDir, keyName := filepath.Split(keyPath)
+		switch keyName {
+		case "ssh_host_rsa_key":
+			privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
+			if err != nil {
+				return fmt.Errorf("generating RSA key: %w", err)
+			}
+			blockType = "RSA PRIVATE KEY"
+			bytes = x509.MarshalPKCS1PrivateKey(privateKey)
+		case "ssh_host_ecdsa_key":
+			pk, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+			if err != nil {
+				return fmt.Errorf("generating ECDSA key: %w", err)
+			}
+			blockType = "EC PRIVATE KEY"
+			bytes, _ = x509.MarshalECPrivateKey(pk)
+		case "ssh_host_ed25519_key":
+			_, pk, err := ed25519.GenerateKey(rand.Reader)
+			if err != nil {
+				return fmt.Errorf("generating ED25519 key: %w", err)
+			}
+			// Use proprietary OPENSSH PRIVATE KEY format for ED25519 keys
+			blockType = "OPENSSH PRIVATE KEY"
+			bytes = edkey.MarshalED25519PrivateKey(pk)
+
+			// Alternative and not proprietary format: PKCS#8 but others will expect the
+			// OPENSSH format in a context of SSH server key.
+			//
+			// blockType = "PRIVATE KEY"
+			// bytes, err = x509.MarshalPKCS8PrivateKey(pk) if err != nil {
+			// 	return err
+			// }
+		default:
+			continue
+		}
+		if err := os.MkdirAll(keyDir, 0o755); err != nil {
+			return fmt.Errorf("creating directory for key: %w", err)
+		}
+		privatePEM := pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: bytes})
+		if err := writeIfNotExist(keyPath, privatePEM, 0o640); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeIfNotExist(path string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(path, syscall.O_WRONLY|os.O_CREATE, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err1 := f.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	return err
 }
 
 func allowedUsersPubKeys(users, pubs, pubPaths []string) (map[string][]ssh.PublicKey, error) {

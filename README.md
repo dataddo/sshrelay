@@ -23,9 +23,10 @@ Usage:
   sshrelay [flags] [args]
 
 Flags:
+      --generate-keys             Generate host keys if not exist
   -h, --help                      help for sshrelay
       --host string               Hostname or IP address to listen on (default "0.0.0.0")
-      --host-key strings          Host key file (default [/etc/ssh/ssh_host_rsa_key])
+      --host-key strings          Host key file (default [/etc/ssh/ssh_host_rsa_key,/etc/ssh/ssh_host_ecdsa_key,/etc/ssh/ssh_host_ed25519_key])
       --port uint                 Port to listen on (default 22)
       --public-key strings        Public key file for user
       --public-key-path strings   Path to public key file for user
