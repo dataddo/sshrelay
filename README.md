@@ -15,22 +15,22 @@ go install github.com/prochac/sshrelay@latest
 ## Usage
 
 If you want to set up users, you must use the `--public-key` or
-`--public-key-path` to specify the public key file for the user. The number of
-`--user` flags and `--public-key` or `--public-key-path` flags must be the same.
+`--public-key-inline` to specify the public key file for the user. The number of
+`--user` flags and `--public-key` or `--public-key-inline` flags must be the same.
 
 ```
 Usage:
   sshrelay [flags] [args]
 
 Flags:
-      --generate-keys             Generate host keys if not exist
-  -h, --help                      help for sshrelay
-      --host string               Hostname or IP address to listen on (default "0.0.0.0")
-      --host-key strings          Host key file (default [/etc/ssh/ssh_host_rsa_key,/etc/ssh/ssh_host_ecdsa_key,/etc/ssh/ssh_host_ed25519_key])
-      --port uint                 Port to listen on (default 22)
-      --public-key strings        Public key file for user
-      --public-key-path strings   Path to public key file for user
-      --user strings              Allowed user
+      --generate-keys               Generate host keys if not exist
+  -h, --help                        help for sshrelay
+      --host string                 Hostname or IP address to listen on (default "0.0.0.0")
+      --host-key strings            Host key file (default [/etc/ssh/ssh_host_rsa_key,/etc/ssh/ssh_host_ecdsa_key,/etc/ssh/ssh_host_ed25519_key])
+      --port uint                   Port to listen on (default 22)
+      --public-key strings          Path to public key file for user
+      --public-key-inline strings   Public key file for user, directly as string
+      --user strings                Allowed user
 ```
 
 ### systemd
@@ -49,7 +49,7 @@ ExecStart=/usr/bin/sshrelay \
     --host-key /etc/ssh/ssh_host_ed25519_key \
     --port 2222 \
     --user bob \
-    --public-key-path /home/bob/.ssh/id_rsa.pub
+    --public-key /home/bob/.ssh/id_rsa.pub
 KillMode=process
 Restart=always
 SyslogIdentifier=sshrelay

@@ -164,7 +164,7 @@ func (r *rootCmd) PreRun(_, _ *simplecobra.Commandeer) error {
 	if err != nil {
 		return fmt.Errorf("failed to prepare signers: %w", err)
 	}
-	allowedUsers, err := allowedUsersPubKeys(r.flags.users, r.flags.pubs, r.flags.pubPaths)
+	allowedUsers, err := allowedUsersPubKeys(r.flags.users, r.flags.pubInlines, r.flags.pubPaths)
 	if err != nil {
 		return fmt.Errorf("failed to prepare allowed users: %w", err)
 	}
@@ -177,13 +177,13 @@ func (r *rootCmd) PreRun(_, _ *simplecobra.Commandeer) error {
 }
 
 type cmdFlags struct {
-	host     string
-	port     uint
-	hostKeys []string
-	users    []string
-	pubs     []string
-	pubPaths []string
-	genKeys  bool
+	host       string
+	port       uint
+	hostKeys   []string
+	users      []string
+	pubInlines []string
+	pubPaths   []string
+	genKeys    bool
 }
 
 var defaultHostKeys = []string{
@@ -198,9 +198,9 @@ func (r *rootCmd) Init(c *simplecobra.Commandeer) error {
 	flags.UintVar(&r.flags.port, "port", 22, "Port to listen on")
 	flags.StringSliceVar(&r.flags.hostKeys, "host-key", defaultHostKeys, "Host key file")
 	flags.StringSliceVar(&r.flags.users, "user", nil, "Allowed user")
-	flags.StringSliceVar(&r.flags.pubs, "public-key", nil, "Public key file for user")
-	flags.StringSliceVar(&r.flags.pubPaths, "public-key-path", nil, "Path to public key file for user")
-	flags.BoolVar(&r.flags.genKeys, "generate-keys", false, "Generate host keys if not exist")
+	flags.StringSliceVar(&r.flags.pubInlines, "public-key-inline", nil, "Public key file for user, directly as string")
+	flags.StringSliceVar(&r.flags.pubPaths, "public-key", nil, "Path to public key file for user")
+	flags.BoolVar(&r.flags.genKeys, "generate-host-keys", false, "Generate host keys if not exist")
 	return nil
 }
 
@@ -268,14 +268,14 @@ func writeIfNotExist(path string, data []byte, perm os.FileMode) error {
 	return err
 }
 
-func allowedUsersPubKeys(users, pubs, pubPaths []string) (map[string][]ssh.PublicKey, error) {
-	if len(pubs) > 0 && len(pubPaths) > 0 {
+func allowedUsersPubKeys(users, pubInlines, pubPaths []string) (map[string][]ssh.PublicKey, error) {
+	if len(pubInlines) > 0 && len(pubPaths) > 0 {
 		return nil, errors.New("cannot use both public-key and public-key-path")
 	}
 	pubsData := make([][]byte, 0, len(users))
 	switch {
-	case len(pubs) > 0:
-		for _, pub := range pubs {
+	case len(pubInlines) > 0:
+		for _, pub := range pubInlines {
 			pubsData = append(pubsData, []byte(pub))
 		}
 	case len(pubPaths) > 0:
