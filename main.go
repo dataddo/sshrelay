@@ -26,7 +26,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
-const version = "0.0.12"
+const version = "0.0.13"
 
 type rootCmd struct {
 	flags cmdFlags
