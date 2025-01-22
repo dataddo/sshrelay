@@ -58,6 +58,8 @@ jobs:
           tag_name: ${{ github.ref }}
           draft: false
           prerelease: false
+        outputs:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
 
   upload_assets:
     needs: [build_assets, create_release]
