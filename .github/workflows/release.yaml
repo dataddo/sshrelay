@@ -44,6 +44,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,8 +60,6 @@ jobs:
           tag_name: ${{ github.ref }}
           draft: false
           prerelease: false
-        outputs:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
 
   upload_assets:
     needs: [build_assets, create_release]
