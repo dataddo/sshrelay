@@ -60,7 +60,7 @@ jobs:
           prerelease: false
 
   upload_assets:
-    needs: create_release
+    needs: [build_assets, create_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,7 +84,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: dist/
           asset_name: ${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
           asset_content_type: application/octet-stream
