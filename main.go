@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"syscall"
 
@@ -26,7 +27,22 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
-const version = "0.0.14"
+var Version = ""
+var GoVersion = ""
+var BuildInfo debug.BuildInfo
+
+func init() {
+	i, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	BuildInfo = *i
+	GoVersion = i.GoVersion
+	// in a case of `go install`, and not pre-built binary
+	if Version == "" {
+		Version = i.Main.Version
+	}
+}
 
 type rootCmd struct {
 	flags cmdFlags
@@ -35,8 +51,31 @@ type rootCmd struct {
 
 func (r *rootCmd) Name() string { return "sshrelay" }
 
+type versionCommander struct {
+	verbose bool
+}
+
+func (v *versionCommander) Name() string { return "version" }
+func (v *versionCommander) Run(context.Context, *simplecobra.Commandeer, []string) error {
+	fmt.Printf("SSHRelay %s (%s)\n", Version, GoVersion)
+	if v.verbose {
+		fmt.Print(BuildInfo.String())
+	}
+	return nil
+}
+
+func (v *versionCommander) Init(c *simplecobra.Commandeer) error {
+	flags := c.CobraCommand.Flags()
+	flags.BoolVarP(&v.verbose, "verbose", "v", false, "Print verbose version information")
+	return nil
+}
+func (v *versionCommander) PreRun(_, _ *simplecobra.Commandeer) error { return nil }
+func (v *versionCommander) Commands() []simplecobra.Commander         { return nil }
+
 func (r *rootCmd) Commands() []simplecobra.Commander {
-	return []simplecobra.Commander{}
+	return []simplecobra.Commander{
+		&versionCommander{},
+	}
 }
 
 func main() {
@@ -64,7 +103,7 @@ func (r *rootCmd) Run(ctx context.Context, _ *simplecobra.Commandeer, _ []string
 			_, _ = io.WriteString(s, "Use '-N' flag to not start terminal session\n")
 		},
 		HostSigners: r.cfg.signers,
-		Version:     "SSHRelay_" + version,
+		Version:     "SSHRelay_" + Version,
 		BannerHandler: func(ctx ssh.Context) string {
 			return "" +
 				"###################################################################\n" +
@@ -151,7 +190,10 @@ type config struct {
 	allowedUsers map[string][]ssh.PublicKey
 }
 
-func (r *rootCmd) PreRun(_, _ *simplecobra.Commandeer) error {
+func (r *rootCmd) PreRun(_, runner *simplecobra.Commandeer) error {
+	if runner.Command.Name() == "version" {
+		return nil
+	}
 	if r.flags.port > 65535 {
 		return fmt.Errorf("invalid port number: %d", r.flags.port)
 	}
@@ -193,7 +235,7 @@ var defaultHostKeys = []string{
 }
 
 func (r *rootCmd) Init(c *simplecobra.Commandeer) error {
-	flags := c.CobraCommand.PersistentFlags()
+	flags := c.CobraCommand.Flags()
 	flags.StringVar(&r.flags.host, "host", "0.0.0.0", "Hostname or IP address to listen on")
 	flags.UintVar(&r.flags.port, "port", 22, "Port to listen on")
 	flags.StringSliceVar(&r.flags.hostKeys, "host-key", defaultHostKeys, "Host key file")

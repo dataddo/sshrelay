@@ -5,7 +5,7 @@ ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build .
+RUN go build -ldflags="-X 'main.Version=$APP_VERSION'" .
 
 FROM gcr.io/distroless/static
 LABEL maintainer="Tomas Prochazka <tomas.prochazka@dataddo.com>"

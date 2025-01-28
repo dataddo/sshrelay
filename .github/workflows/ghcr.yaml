@@ -2,7 +2,8 @@ name: Create and publish a Docker image
 
 on:
   push:
-    branches: [ master ]
+    tags:
+      - 'v*.*.*'
 
 # Defines two custom environment variables for the workflow. These are used for the Container
 # registry domain, and a name for the Docker image that this workflow builds.
@@ -50,6 +51,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
 
       # This step generates an artifact attestation for the image, which is an unforgeable
       # statement about where and how it was built. It increases supply chain security for
