@@ -9,22 +9,26 @@ it.
 ## Install
 
 If you have Go installed, you can install this with the following command.
+
 ```
 go install github.com/prochac/sshrelay@latest
 ```
 
-Or you can download the binary from the [releases page](https://github.com/prochac/sshrelay/releases).
+Or you can download the binary from
+the [releases page](https://github.com/prochac/sshrelay/releases).
 
 Or you can install it with the provided installation script.
+
 ```
-curl -sSL https://raw.githubusercontent.com/prochac/sshrelay/master/install.sh | bash
+sudo bash <(curl -sSL https://raw.githubusercontent.com/prochac/sshrelay/master/install.sh)
 ```
 
 ## Usage
 
 If you want to set up users, you must use the `--public-key` or
 `--public-key-inline` to specify the public key file for the user. The number of
-`--user` flags and `--public-key` or `--public-key-inline` flags must be the same.
+`--user` flags and `--public-key` or `--public-key-inline` flags must be the
+same.
 
 ```
 Usage:
