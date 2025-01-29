@@ -21,7 +21,7 @@ Or on Linux, you can install it with the provided installation script, that will
 install it as a systemd service.
 
 ```
-sudo bash <(curl -sSL https://raw.githubusercontent.com/prochac/sshrelay/master/install.sh)
+sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/prochac/sshrelay/master/install.sh)"
 ```
 
 ## Usage
