@@ -8,8 +8,16 @@ it.
 
 ## Install
 
+If you have Go installed, you can install this with the following command.
 ```
 go install github.com/prochac/sshrelay@latest
+```
+
+Or you can download the binary from the [releases page](https://github.com/prochac/sshrelay/releases).
+
+Or you can install it with the provided installation script.
+```
+curl -sSL https://raw.githubusercontent.com/prochac/sshrelay/master/install.sh | bash
 ```
 
 ## Usage
