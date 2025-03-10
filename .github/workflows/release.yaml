@@ -30,7 +30,11 @@ jobs:
       - name: Build binary
         run: |
           mkdir -p dist
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-X 'main.Version=${{ github.ref_name }}'" -o dist/${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          EXT=""
+          if [ ${{ matrix.goos }} = "windows" ]; then
+              EXT=".exe"
+          fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-X 'main.Version=${{ github.ref_name }}'" -o dist/${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
