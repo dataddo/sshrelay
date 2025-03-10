@@ -39,7 +39,7 @@ jobs:
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-binaries
+          name: ${{ env.APP_NAME }}-binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
 
   create_release:
@@ -82,7 +82,8 @@ jobs:
       - name: Download binaries
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-binaries
+          merge-multiple: true
+          pattern: ${{ env.APP_NAME }}-binaries-*
           path: dist/
 
       - name: Upload Release Asset
