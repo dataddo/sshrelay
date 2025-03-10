@@ -81,3 +81,9 @@ ex. forward `neverssl.com` to your local port
 ```
 ssh -N -p {port} {user}@{host} -L 127.0.0.1:8080:neverssl.com:80
 ```
+
+## Contributing
+
+Fixes and improvements are welcome.
+If you want to add a feature, please open an issue first, so we can discuss it.
+The Issues with `help wanted` label are a good place to start contributing.
