@@ -1,5 +1,5 @@
-FROM golang:1.23 AS builder
-LABEL maintainer="Tomas Prochazka <tomas.prochazka@dataddo.com>"
+FROM golang:1.24 AS builder
+LABEL maintainer="Tomas Karela Prochazka <tomas.prochazka@dataddo.com>"
 WORKDIR /app
 ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
@@ -8,6 +8,6 @@ COPY . .
 RUN go build -ldflags="-X 'main.Version=$APP_VERSION'" .
 
 FROM gcr.io/distroless/static
-LABEL maintainer="Tomas Prochazka <tomas.prochazka@dataddo.com>"
+LABEL maintainer="Tomas Karela Prochazka <tomas.prochazka@dataddo.com>"
 COPY --from=builder /app/sshrelay /bin/sshrelay
 CMD ["/bin/sshrelay"]
