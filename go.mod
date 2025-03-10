@@ -1,4 +1,4 @@
-module github.com/prochac/sshrelay
+module go.dataddo.com/sshrelay
 
 go 1.24
 
