@@ -1,4 +1,4 @@
-FROM golang:1.24 AS builder
+FROM golang:1.25 AS builder
 LABEL maintainer="Tomas Karela Prochazka <tomas.prochazka@dataddo.com>"
 WORKDIR /app
 ENV CGO_ENABLED=0
