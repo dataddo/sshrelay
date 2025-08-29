@@ -29,11 +29,15 @@ printf "Enter the path to install sshrelay [/usr/local/bin]: "
 read -r install_path
 install_path=${install_path:-/usr/local/bin}
 
-[ -z "$yes_all" ] && (confirm "Do you want to install sshrelay to ${install_path}?" || exit 0)
+if [ -z "$yes_all" ]; then
+    confirm "Do you want to install sshrelay to ${install_path}?" || exit 0
+fi
 
 # check if the path exists
 if [ ! -d "${install_path}" ]; then
-    [ -z "$yes_all" ] && (confirm "The path ${install_path} does not exist. Do you want to create it?" || exit 0)
+    if [ -z "$yes_all" ]; then
+      [ -z "$yes_all" ] && (confirm "The path ${install_path} does not exist. Do you want to create it?" || exit 0)
+    fi
     mkdir -p "${install_path}"
 fi
 
@@ -89,7 +93,7 @@ EOF
 )
 
 binURL=$(curl \
-  -s https://api.github.com/repos/prochac/sshrelay/releases/latest \
+  -s -L https://api.github.com/repos/dataddo/sshrelay/releases/latest \
   | jq -r "$query"
 )
 
@@ -98,7 +102,9 @@ chmod +x "${install_path}/sshrelay"
 
 echo "Successfully installed to ${install_path}/sshrelay"
 
-[ -z "$yes_all" ] && (confirm "Do you want to create a systemd service for sshrelay?" || exit 0)
+if [ -z "$yes_all" ]; then
+    confirm "Do you want to create a systemd service for sshrelay?" || exit 0
+fi
 
 systemd_service="\
 [Unit]
@@ -130,7 +136,10 @@ echo "Successfully created systemd service sshrelay"
 echo "Please edit /etc/systemd/system/sshrelay.service to add access to some users"
 echo "Then don't forget to run 'systemctl daemon-reload' to reload the service"
 
-[ -z "$yes_all" ] && (confirm "Do you want to start the sshrelay service?" || exit 0)
+if [ -z "$yes_all" ]; then
+    confirm "Do you want to start the sshrelay service?" || exit 0)
+fi
+
 systemctl enable sshrelay
 systemctl start sshrelay
 systemctl status sshrelay
