@@ -6,7 +6,7 @@ require (
 	github.com/bep/simplecobra v0.6.1
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
-	golang.org/x/crypto v0.42.0
+	golang.org/x/crypto v0.46.0
 )
 
 require (
@@ -14,5 +14,5 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
 )
